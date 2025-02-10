@@ -8,11 +8,7 @@
   <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
   <style>
     /* Reset & Base Styling */
-    * {
-      margin: 0;
-      padding: 0;
-      box-sizing: border-box;
-    }
+    * { margin: 0; padding: 0; box-sizing: border-box; }
     body {
       font-family: 'Roboto', sans-serif;
       background-color: #f5f5f5;
@@ -27,9 +23,7 @@
       text-align: center;
       position: relative;
     }
-    header h1 {
-      margin-bottom: 0.5rem;
-    }
+    header h1 { margin-bottom: 0.5rem; }
     #mute-btn {
       position: absolute;
       top: 10px;
@@ -43,9 +37,7 @@
       cursor: pointer;
       transition: background 0.2s ease, transform 0.1s ease;
     }
-    #mute-btn:active {
-      transform: scale(0.97);
-    }
+    #mute-btn:active { transform: scale(0.97); }
     /* Controls: Split into two columns */
     .controls {
       background: #fff;
@@ -55,10 +47,7 @@
       align-items: center;
       box-shadow: 0 2px 4px rgba(0,0,0,0.1);
     }
-    .control-item {
-      display: flex;
-      align-items: center;
-    }
+    .control-item { display: flex; align-items: center; }
     /* Left-side: Search input and button */
     .controls .left {
       flex: 1;
@@ -66,6 +55,7 @@
       align-items: center;
     }
     .controls .left input {
+      width: 300px;
       font-size: 1rem;
       padding: 0.5rem;
       border: 1px solid #ccc;
@@ -85,9 +75,7 @@
       font-family: 'Roboto', sans-serif;
       transition: background 0.2s ease, transform 0.1s ease;
     }
-    .controls .left button:active {
-      transform: scale(0.97);
-    }
+    .controls .left button:active { transform: scale(0.97); }
     /* Right-side: Use My Location button */
     .controls .right button {
       font-size: 1rem;
@@ -100,9 +88,7 @@
       font-family: 'Roboto', sans-serif;
       transition: background 0.2s ease, transform 0.1s ease;
     }
-    .controls .right button:active {
-      transform: scale(0.97);
-    }
+    .controls .right button:active { transform: scale(0.97); }
     /* Map Container */
     #map {
       width: 100%;
@@ -115,24 +101,19 @@
       border-radius: 4px;
       box-shadow: 0 1px 4px rgba(0,0,0,0.3);
       cursor: pointer;
-      width: 80px;
-      height: 40px;
-      line-height: 18px;
+      width: 34px;
+      height: 34px;
+      line-height: 34px;
       text-align: center;
-      font-size: 18px;
+      font-size: 14px;
       font-weight: bold;
       color: #0078d7;
     }
     /* Popup Styling */
-    .popup-content {
-      font-size: 0.9rem;
-    }
+    .popup-content { font-size: 0.9rem; }
     /* Responsive Adjustments */
     @media (max-width: 600px) {
-      .controls {
-         flex-direction: column;
-         gap: 0.5rem;
-      }
+      .controls { flex-direction: column; gap: 0.5rem; }
       .controls .left, .controls .right {
          width: 100%;
          display: flex;
@@ -151,8 +132,11 @@
   </style>
 </head>
 <body>
-  <!-- Hidden audio element for beep sound (ensure beep.wav is in the same folder) -->
-  <audio id="beep-sound" preload="auto" src="beep.wav"></audio>
+  <!-- Hidden audio element for beep sound -->
+  <audio id="beep-sound" preload="auto">
+    <source src="beep.wav" type="audio/wav">
+    Your browser does not support the audio element.
+  </audio>
   
   <header>
     <h1>TfL Bus Live Tracker</h1>
@@ -160,9 +144,9 @@
   </header>
   
   <div class="controls">
-    <!-- Left: Place Name Search -->
+    <!-- Left: Search by Place Name or Postcode -->
     <div class="control-item left">
-      <input type="text" id="location-input" placeholder="Enter a place name" aria-label="Enter a place name">
+      <input type="text" id="location-input" placeholder="Enter a place name or postcode" aria-label="Enter a place name or postcode">
       <button id="search-btn" aria-label="Search bus stops">Search</button>
     </div>
     <!-- Right: Use My Location -->
@@ -173,11 +157,10 @@
   
   <div id="map" role="application" aria-label="Map showing bus stops"></div>
   
-  <!-- Include Leaflet JS (this must come before our inline script) -->
+  <!-- Include Leaflet JS (must come before our inline script) -->
   <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
   <script>
-    // CONFIGURATION: Insert your TfL API key here.
-    // (No app_id is required; only the key is needed.)
+    // Transport for London (TfL) API Key
     const TFL_APP_KEY = "0f1dcc3adb4e438196be91ec8b7b93a8";
 
     // Global Variables
@@ -196,7 +179,7 @@
     let muted = false;                // Sound is on by default
 
     // --------------- Beep Sound ---------------
-    // First try using the HTMLAudioElement (with beep.wav),
+    // Try using the HTMLAudioElement (with beep.wav),
     // and if that fails, fall back to an oscillator-based beep.
     function beepSound() {
       if (muted) return;
@@ -216,18 +199,16 @@
       if (muted) return;
       try {
         const ctx = new (window.AudioContext || window.webkitAudioContext)();
-        if (ctx.state === 'suspended') {
-          ctx.resume();
-        }
+        if (ctx.state === 'suspended') ctx.resume();
         const oscillator = ctx.createOscillator();
         const gainNode = ctx.createGain();
         oscillator.connect(gainNode);
         gainNode.connect(ctx.destination);
         oscillator.type = 'sine';
-        oscillator.frequency.setValueAtTime(440, ctx.currentTime); // A4 note
+        oscillator.frequency.setValueAtTime(440, ctx.currentTime);
         gainNode.gain.setValueAtTime(0.1, ctx.currentTime);
         oscillator.start();
-        oscillator.stop(ctx.currentTime + 0.2); // 200ms beep
+        oscillator.stop(ctx.currentTime + 0.2);
       } catch (e) {
         console.error("Oscillator beep failed:", e);
       }
@@ -265,7 +246,6 @@
         maxZoom: 19,
         attribution: 'Tiles &copy; Esri — Source: Esri, i-cubed, USDA, USGS, AEX, GeoEye, Getmapping, Aerogrid, IGN, IGP, UPR-EGP, and the GIS User Community'
       });
-      // Set the current tile layer to normal.
       currentTileLayer = normalTileLayer;
       currentTileLayer.addTo(map);
       
@@ -298,13 +278,11 @@
     // --------------- Satellite Toggle Control ---------------
     function addSatelliteToggleControl() {
       const SatelliteControl = L.Control.extend({
-        options: {
-          position: 'bottomright'
-        },
+        options: { position: 'bottomright' },
         onAdd: function(map) {
           const container = L.DomUtil.create('div', 'leaflet-control-satellite');
           container.title = "Toggle Satellite View";
-          container.innerHTML = "Satellite View";
+          container.innerHTML = "Sat";
           L.DomEvent.disableClickPropagation(container);
           container.onclick = toggleSatellite;
           return container;
@@ -325,9 +303,40 @@
       currentTileLayer.addTo(map);
     }
 
+    // --------------- Geocode Function (Place Name or Postcode) ---------------
+    function geocodePlace(input) {
+      // Trim input and check if it matches a UK postcode pattern.
+      const trimmed = input.trim();
+      const postcodeRegex = /^[A-Z]{1,2}[0-9][0-9A-Z]? ?[0-9][A-Z]{2}$/i;
+      if (postcodeRegex.test(trimmed)) {
+        // Use postcodes.io for postcode lookup.
+        const url = `https://api.postcodes.io/postcodes/${encodeURIComponent(trimmed)}`;
+        return fetch(url)
+          .then(response => response.json())
+          .then(data => {
+            if (data.status === 200 && data.result) {
+              return { lat: data.result.latitude, lon: data.result.longitude };
+            } else {
+              throw new Error("Postcode not found.");
+            }
+          });
+      } else {
+        // Fallback: Use Nominatim for place name lookup.
+        const url = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(trimmed)}`;
+        return fetch(url, { headers: { 'Accept-Language': 'en' } })
+          .then(response => response.json())
+          .then(data => {
+            if (data && data.length > 0) {
+              return { lat: parseFloat(data[0].lat), lon: parseFloat(data[0].lon) };
+            } else {
+              throw new Error("Place not found.");
+            }
+          });
+      }
+    }
+
     // --------------- Fetch Bus Stops ---------------
     function fetchBusStops(lat, lon) {
-      // Clear previous bus stop markers and polling intervals.
       busStopMarkers.forEach(marker => map.removeLayer(marker));
       busStopMarkers = [];
       Object.values(busStopIntervals).forEach(interval => clearInterval(interval));
@@ -335,7 +344,6 @@
       
       const radius = 500;
       const stopTypes = 'NaptanPublicBusCoachTram';
-      // Append your credential (only the key is required):
       const url = `https://api.tfl.gov.uk/StopPoint?lat=${lat}&lon=${lon}&stopTypes=${stopTypes}&radius=${radius}&app_key=0f1dcc3adb4e438196be91ec8b7b93a8`;
       
       fetch(url)
@@ -346,20 +354,14 @@
             alert("No bus stops found nearby.");
             return;
           }
-          // Calculate distances from the user's location.
-          stops.forEach(stop => {
-            stop.distance = getDistance(lat, lon, stop.lat, stop.lon);
-          });
-          // Sort by distance (closest first) and take the five nearest.
+          stops.forEach(stop => { stop.distance = getDistance(lat, lon, stop.lat, stop.lon); });
           stops.sort((a, b) => a.distance - b.distance);
           const nearestStops = stops.slice(0, 5);
           if (nearestStops.length > 0) {
             currentNearestStopId = nearestStops[0].id;
             spokenNearest = false;
           }
-          nearestStops.forEach(stop => {
-            addBusStopMarker(stop);
-          });
+          nearestStops.forEach(stop => { addBusStopMarker(stop); });
         })
         .catch(err => {
           console.error(err);
@@ -369,7 +371,7 @@
 
     // --------------- Distance Calculation (Haversine Formula) ---------------
     function getDistance(lat1, lon1, lat2, lon2) {
-      const R = 6371e3; // Earth's radius in meters
+      const R = 6371e3;
       const toRad = angle => angle * Math.PI / 180;
       const φ1 = toRad(lat1), φ2 = toRad(lat2);
       const Δφ = toRad(lat2 - lat1);
@@ -385,14 +387,11 @@
       marker.bindPopup(`<div class="popup-content"><strong>${stop.commonName}</strong><br>Loading bus arrivals...</div>`);
       busStopMarkers.push(marker);
       updateBusArrivals(stop, marker);
-      busStopIntervals[stop.id] = setInterval(() => {
-        updateBusArrivals(stop, marker);
-      }, 30000);
+      busStopIntervals[stop.id] = setInterval(() => { updateBusArrivals(stop, marker); }, 30000);
     }
 
     // --------------- Update Bus Arrivals & Speech Synthesis ---------------
     function updateBusArrivals(stop, marker) {
-      // Append credentials to the Bus Arrivals URL
       const url = `https://api.tfl.gov.uk/StopPoint/${stop.id}/Arrivals?app_key=0f1dcc3adb4e438196be91ec8b7b93a8`;
       fetch(url)
         .then(response => response.json())
@@ -411,7 +410,6 @@
           }
           marker.getPopup().setContent(content);
           
-          // Speech synthesis for the nearest bus stop.
           if (stop.id === currentNearestStopId && !spokenNearest && !muted) {
             let message = `The nearest bus stop is ${stop.commonName}. `;
             if (!data || data.length === 0) {
@@ -452,25 +450,11 @@
       speechSynthesis.speak(utterance);
     }
 
-    // --------------- Geocode Place Name (Nominatim) ---------------
-    function geocodePlace(placeName) {
-      const url = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(placeName)}`;
-      return fetch(url, { headers: { 'Accept-Language': 'en' } })
-        .then(response => response.json())
-        .then(data => {
-          if (data && data.length > 0) {
-            return { lat: parseFloat(data[0].lat), lon: parseFloat(data[0].lon) };
-          } else {
-            throw new Error("Place not found.");
-          }
-        });
-    }
-
     // --------------- User Interaction Handlers ---------------
     function handleSearch() {
-      const input = document.getElementById('location-input').value.trim();
+      const input = document.getElementById('location-input').value;
       if (!input) {
-        alert("Please enter a place name.");
+        alert("Please enter a place name or postcode.");
         return;
       }
       speechSynthesis.cancel();
