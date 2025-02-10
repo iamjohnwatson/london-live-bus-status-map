@@ -101,11 +101,11 @@
       border-radius: 4px;
       box-shadow: 0 1px 4px rgba(0,0,0,0.3);
       cursor: pointer;
-      width: 34px;
-      height: 34px;
-      line-height: 34px;
+      width: 70px;
+      height: 40px;
+      line-height: 18px;
       text-align: center;
-      font-size: 14px;
+      font-size: 16px;
       font-weight: bold;
       color: #0078d7;
     }
@@ -282,7 +282,7 @@
         onAdd: function(map) {
           const container = L.DomUtil.create('div', 'leaflet-control-satellite');
           container.title = "Toggle Satellite View";
-          container.innerHTML = "Sat";
+          container.innerHTML = "Satellite View";
           L.DomEvent.disableClickPropagation(container);
           container.onclick = toggleSatellite;
           return container;
