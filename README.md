@@ -6,7 +6,7 @@ TfL Bus Live Tracker is a responsive web application that displays real-time bus
 
 - **Real-Time Bus Arrivals:** Displays live bus arrival times at the five nearest bus stops.
 - **Interactive Map:** Powered by Leaflet.js, with a toggle between standard map and satellite views.
-- **Location Search:** Search by place name (using Nominatim for geocoding) to recenter the map.
+- **Location Search:** Search by place name or postcode (using Nominatim for geocoding) to recenter the map.
 - **Geolocation:** Option to use your device’s location to find nearby bus stops.
 - **Drop a Pin:** Click anywhere on the map to select a new location.
 - **Speech Synthesis:** Announces the nearest bus stop and upcoming buses using a British accent.
