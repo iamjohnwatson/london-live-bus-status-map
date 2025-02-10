@@ -1,0 +1,535 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>TfL Bus Live Tracker</title>
+  <!-- Leaflet CSS -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
+  <style>
+    /* Reset & Base Styling */
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+    body {
+      font-family: 'Roboto', sans-serif;
+      background-color: #f5f5f5;
+      color: #333;
+      line-height: 1.6;
+    }
+    /* Header with Centrally Aligned Title and Mute Button */
+    header {
+      background: #0078d7;
+      color: #fff;
+      padding: 1rem;
+      text-align: center;
+      position: relative;
+    }
+    header h1 {
+      margin-bottom: 0.5rem;
+    }
+    #mute-btn {
+      position: absolute;
+      top: 10px;
+      right: 10px;
+      font-size: 0.8rem;
+      padding: 0.3rem 0.6rem;
+      border: none;
+      background: #fff;
+      color: #0078d7;
+      border-radius: 4px;
+      cursor: pointer;
+      transition: background 0.2s ease, transform 0.1s ease;
+    }
+    #mute-btn:active {
+      transform: scale(0.97);
+    }
+    /* Controls: Split into two columns */
+    .controls {
+      background: #fff;
+      padding: 1rem;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    }
+    .control-item {
+      display: flex;
+      align-items: center;
+    }
+    /* Left-side: Search input and button */
+    .controls .left {
+      flex: 1;
+      display: flex;
+      align-items: center;
+    }
+    .controls .left input {
+      font-size: 1rem;
+      padding: 0.5rem;
+      border: 1px solid #ccc;
+      border-right: none;
+      border-radius: 4px 0 0 4px;
+      outline: none;
+      font-family: 'Roboto', sans-serif;
+    }
+    .controls .left button {
+      font-size: 1rem;
+      padding: 0.5rem 1rem;
+      border: 1px solid #0078d7;
+      background: #0078d7;
+      color: #fff;
+      border-radius: 0 4px 4px 0;
+      cursor: pointer;
+      font-family: 'Roboto', sans-serif;
+      transition: background 0.2s ease, transform 0.1s ease;
+    }
+    .controls .left button:active {
+      transform: scale(0.97);
+    }
+    /* Right-side: Use My Location button */
+    .controls .right button {
+      font-size: 1rem;
+      padding: 0.5rem 1rem;
+      border: 1px solid #0078d7;
+      background: #0078d7;
+      color: #fff;
+      border-radius: 4px;
+      cursor: pointer;
+      font-family: 'Roboto', sans-serif;
+      transition: background 0.2s ease, transform 0.1s ease;
+    }
+    .controls .right button:active {
+      transform: scale(0.97);
+    }
+    /* Map Container */
+    #map {
+      width: 100%;
+      height: calc(100vh - 250px); /* Adjust height for header & controls */
+      position: relative;
+    }
+    /* Custom Satellite Toggle Control (inset into the map) */
+    .leaflet-control-satellite {
+      background: rgba(255,255,255,0.8);
+      border-radius: 4px;
+      box-shadow: 0 1px 4px rgba(0,0,0,0.3);
+      cursor: pointer;
+      width: 80px;
+      height: 40px;
+      line-height: 18px;
+      text-align: center;
+      font-size: 18px;
+      font-weight: bold;
+      color: #0078d7;
+    }
+    /* Popup Styling */
+    .popup-content {
+      font-size: 0.9rem;
+    }
+    /* Responsive Adjustments */
+    @media (max-width: 600px) {
+      .controls {
+         flex-direction: column;
+         gap: 0.5rem;
+      }
+      .controls .left, .controls .right {
+         width: 100%;
+         display: flex;
+         justify-content: center;
+      }
+      .controls .left input, .controls .left button, 
+      .controls .right button {
+         width: 90%;
+         font-size: 1rem;
+      }
+      #mute-btn {
+         font-size: 0.7rem;
+         padding: 0.2rem 0.4rem;
+      }
+    }
+  </style>
+</head>
+<body>
+  <!-- Hidden audio element for beep sound (ensure beep.wav is in the same folder) -->
+  <audio id="beep-sound" preload="auto" src="beep.wav"></audio>
+  
+  <header>
+    <h1>TfL Bus Live Tracker</h1>
+    <button id="mute-btn">Mute</button>
+  </header>
+  
+  <div class="controls">
+    <!-- Left: Place Name Search -->
+    <div class="control-item left">
+      <input type="text" id="location-input" placeholder="Enter a place name" aria-label="Enter a place name">
+      <button id="search-btn" aria-label="Search bus stops">Search</button>
+    </div>
+    <!-- Right: Use My Location -->
+    <div class="control-item right">
+      <button id="locate-btn" aria-label="Find my location">Use My Location</button>
+    </div>
+  </div>
+  
+  <div id="map" role="application" aria-label="Map showing bus stops"></div>
+  
+  <!-- Include Leaflet JS (this must come before our inline script) -->
+  <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+  <script>
+    // CONFIGURATION: Insert your TfL API key here.
+    // (No app_id is required; only the key is needed.)
+    const TFL_APP_KEY = "0f1dcc3adb4e438196be91ec8b7b93a8";
+
+    // Global Variables
+    let map;
+    let userMarker = null;       // "You are here" marker
+    let userLocation = null;
+    let busStopMarkers = [];     // Array to hold bus stop markers
+    let busStopIntervals = {};   // Polling intervals for bus stop data
+
+    // Tile layers for normal map and satellite view
+    let normalTileLayer, satelliteTileLayer, currentTileLayer;
+
+    // For speech synthesis and mute control
+    let currentNearestStopId = null;  // ID of the nearest bus stop
+    let spokenNearest = false;        // Flag so we speak only once per search
+    let muted = false;                // Sound is on by default
+
+    // --------------- Beep Sound ---------------
+    // First try using the HTMLAudioElement (with beep.wav),
+    // and if that fails, fall back to an oscillator-based beep.
+    function beepSound() {
+      if (muted) return;
+      const beep = document.getElementById("beep-sound");
+      if (beep) {
+        beep.currentTime = 0;
+        beep.play().catch(error => {
+          console.error("Audio element beep failed:", error);
+          tryOscillatorBeep();
+        });
+      } else {
+        tryOscillatorBeep();
+      }
+    }
+
+    function tryOscillatorBeep() {
+      if (muted) return;
+      try {
+        const ctx = new (window.AudioContext || window.webkitAudioContext)();
+        if (ctx.state === 'suspended') {
+          ctx.resume();
+        }
+        const oscillator = ctx.createOscillator();
+        const gainNode = ctx.createGain();
+        oscillator.connect(gainNode);
+        gainNode.connect(ctx.destination);
+        oscillator.type = 'sine';
+        oscillator.frequency.setValueAtTime(440, ctx.currentTime); // A4 note
+        gainNode.gain.setValueAtTime(0.1, ctx.currentTime);
+        oscillator.start();
+        oscillator.stop(ctx.currentTime + 0.2); // 200ms beep
+      } catch (e) {
+        console.error("Oscillator beep failed:", e);
+      }
+    }
+
+    // --------------- Map Initialization ---------------
+    function initMap(lat, lon) {
+      // Cancel any ongoing speech and play beep when a new location is selected.
+      speechSynthesis.cancel();
+      if (!muted) { beepSound(); }
+      
+      if (map) {
+        map.setView([lat, lon], 15);
+        if (userMarker) {
+          userMarker.setLatLng([lat, lon]);
+          userMarker.setPopupContent("You are here").openPopup();
+        } else {
+          userMarker = L.marker([lat, lon]).addTo(map)
+                        .bindPopup("You are here")
+                        .openPopup();
+        }
+        return;
+      }
+      
+      // Create the map.
+      map = L.map('map').setView([lat, lon], 15);
+      
+      // Create the normal (OSM) tile layer.
+      normalTileLayer = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        maxZoom: 19,
+        attribution: '&copy; OpenStreetMap contributors'
+      });
+      // Create the satellite tile layer (Esri World Imagery).
+      satelliteTileLayer = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
+        maxZoom: 19,
+        attribution: 'Tiles &copy; Esri — Source: Esri, i-cubed, USDA, USGS, AEX, GeoEye, Getmapping, Aerogrid, IGN, IGP, UPR-EGP, and the GIS User Community'
+      });
+      // Set the current tile layer to normal.
+      currentTileLayer = normalTileLayer;
+      currentTileLayer.addTo(map);
+      
+      // Place the default "You are here" marker.
+      userMarker = L.marker([lat, lon]).addTo(map)
+                    .bindPopup("You are here")
+                    .openPopup();
+      
+      // Allow the user to drop a pin by clicking on the map.
+      map.on('click', function(e) {
+        const clickedLat = e.latlng.lat;
+        const clickedLon = e.latlng.lng;
+        userLocation = { lat: clickedLat, lon: clickedLon };
+        speechSynthesis.cancel();
+        if (!muted) { beepSound(); }
+        if (userMarker) {
+          userMarker.setLatLng([clickedLat, clickedLon]);
+        } else {
+          userMarker = L.marker([clickedLat, clickedLon]).addTo(map);
+        }
+        userMarker.bindPopup("You are here").openPopup();
+        spokenNearest = false;
+        fetchBusStops(clickedLat, clickedLon);
+      });
+      
+      // Add the satellite toggle control to the bottom right of the map.
+      addSatelliteToggleControl();
+    }
+
+    // --------------- Satellite Toggle Control ---------------
+    function addSatelliteToggleControl() {
+      const SatelliteControl = L.Control.extend({
+        options: {
+          position: 'bottomright'
+        },
+        onAdd: function(map) {
+          const container = L.DomUtil.create('div', 'leaflet-control-satellite');
+          container.title = "Toggle Satellite View";
+          container.innerHTML = "Satellite View";
+          L.DomEvent.disableClickPropagation(container);
+          container.onclick = toggleSatellite;
+          return container;
+        }
+      });
+      map.addControl(new SatelliteControl());
+    }
+
+    function toggleSatellite() {
+      if (!map) return;
+      if (currentTileLayer === normalTileLayer) {
+        map.removeLayer(normalTileLayer);
+        currentTileLayer = satelliteTileLayer;
+      } else {
+        map.removeLayer(satelliteTileLayer);
+        currentTileLayer = normalTileLayer;
+      }
+      currentTileLayer.addTo(map);
+    }
+
+    // --------------- Fetch Bus Stops ---------------
+    function fetchBusStops(lat, lon) {
+      // Clear previous bus stop markers and polling intervals.
+      busStopMarkers.forEach(marker => map.removeLayer(marker));
+      busStopMarkers = [];
+      Object.values(busStopIntervals).forEach(interval => clearInterval(interval));
+      busStopIntervals = {};
+      
+      const radius = 500;
+      const stopTypes = 'NaptanPublicBusCoachTram';
+      // Append your credential (only the key is required):
+      const url = `https://api.tfl.gov.uk/StopPoint?lat=${lat}&lon=${lon}&stopTypes=${stopTypes}&radius=${radius}&app_key=0f1dcc3adb4e438196be91ec8b7b93a8`;
+      
+      fetch(url)
+        .then(response => response.json())
+        .then(data => {
+          let stops = data.stopPoints;
+          if (!stops || stops.length === 0) {
+            alert("No bus stops found nearby.");
+            return;
+          }
+          // Calculate distances from the user's location.
+          stops.forEach(stop => {
+            stop.distance = getDistance(lat, lon, stop.lat, stop.lon);
+          });
+          // Sort by distance (closest first) and take the five nearest.
+          stops.sort((a, b) => a.distance - b.distance);
+          const nearestStops = stops.slice(0, 5);
+          if (nearestStops.length > 0) {
+            currentNearestStopId = nearestStops[0].id;
+            spokenNearest = false;
+          }
+          nearestStops.forEach(stop => {
+            addBusStopMarker(stop);
+          });
+        })
+        .catch(err => {
+          console.error(err);
+          alert("Error fetching bus stops.");
+        });
+    }
+
+    // --------------- Distance Calculation (Haversine Formula) ---------------
+    function getDistance(lat1, lon1, lat2, lon2) {
+      const R = 6371e3; // Earth's radius in meters
+      const toRad = angle => angle * Math.PI / 180;
+      const φ1 = toRad(lat1), φ2 = toRad(lat2);
+      const Δφ = toRad(lat2 - lat1);
+      const Δλ = toRad(lon2 - lon1);
+      const a = Math.sin(Δφ / 2) ** 2 + Math.cos(φ1) * Math.cos(φ2) * Math.sin(Δλ / 2) ** 2;
+      const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+      return R * c;
+    }
+
+    // --------------- Add Bus Stop Marker & Poll for Arrivals ---------------
+    function addBusStopMarker(stop) {
+      const marker = L.marker([stop.lat, stop.lon]).addTo(map);
+      marker.bindPopup(`<div class="popup-content"><strong>${stop.commonName}</strong><br>Loading bus arrivals...</div>`);
+      busStopMarkers.push(marker);
+      updateBusArrivals(stop, marker);
+      busStopIntervals[stop.id] = setInterval(() => {
+        updateBusArrivals(stop, marker);
+      }, 30000);
+    }
+
+    // --------------- Update Bus Arrivals & Speech Synthesis ---------------
+    function updateBusArrivals(stop, marker) {
+      // Append credentials to the Bus Arrivals URL
+      const url = `https://api.tfl.gov.uk/StopPoint/${stop.id}/Arrivals?app_key=0f1dcc3adb4e438196be91ec8b7b93a8`;
+      fetch(url)
+        .then(response => response.json())
+        .then(data => {
+          let content = "";
+          if (!data || data.length === 0) {
+            content = `<div class="popup-content"><strong>${stop.commonName}</strong><br>No upcoming buses.</div>`;
+          } else {
+            data.sort((a, b) => a.timeToStation - b.timeToStation);
+            content = `<div class="popup-content"><strong>${stop.commonName}</strong><br><ul>`;
+            data.forEach(arrival => {
+              const minutes = Math.round(arrival.timeToStation / 60);
+              content += `<li>Route ${arrival.lineName} to ${arrival.destinationName} - ${minutes} min</li>`;
+            });
+            content += `</ul></div>`;
+          }
+          marker.getPopup().setContent(content);
+          
+          // Speech synthesis for the nearest bus stop.
+          if (stop.id === currentNearestStopId && !spokenNearest && !muted) {
+            let message = `The nearest bus stop is ${stop.commonName}. `;
+            if (!data || data.length === 0) {
+              message += "There are no upcoming buses.";
+            } else {
+              message += "The next buses are: ";
+              data.slice(0, 3).forEach((arrival, index) => {
+                const minutes = Math.round(arrival.timeToStation / 60);
+                message += `Bus ${index + 1}: route ${arrival.lineName} to ${arrival.destinationName} in ${minutes} minute${minutes === 1 ? '' : 's'}. `;
+              });
+            }
+            speakMessage(message);
+            spokenNearest = true;
+          }
+        })
+        .catch(err => {
+          console.error(err);
+          marker.getPopup().setContent(`<div class="popup-content"><strong>${stop.commonName}</strong><br>Error loading arrivals.</div>`);
+        });
+    }
+
+    // --------------- Speech Synthesis Helper ---------------
+    function getBritishVoice() {
+      const voices = speechSynthesis.getVoices();
+      for (let i = 0; i < voices.length; i++) {
+        if (voices[i].lang === 'en-GB') {
+          return voices[i];
+        }
+      }
+      return voices[0];
+    }
+
+    function speakMessage(message) {
+      if (muted) return;
+      const utterance = new SpeechSynthesisUtterance(message);
+      utterance.lang = 'en-GB';
+      utterance.voice = getBritishVoice();
+      speechSynthesis.speak(utterance);
+    }
+
+    // --------------- Geocode Place Name (Nominatim) ---------------
+    function geocodePlace(placeName) {
+      const url = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(placeName)}`;
+      return fetch(url, { headers: { 'Accept-Language': 'en' } })
+        .then(response => response.json())
+        .then(data => {
+          if (data && data.length > 0) {
+            return { lat: parseFloat(data[0].lat), lon: parseFloat(data[0].lon) };
+          } else {
+            throw new Error("Place not found.");
+          }
+        });
+    }
+
+    // --------------- User Interaction Handlers ---------------
+    function handleSearch() {
+      const input = document.getElementById('location-input').value.trim();
+      if (!input) {
+        alert("Please enter a place name.");
+        return;
+      }
+      speechSynthesis.cancel();
+      if (!muted) { beepSound(); }
+      spokenNearest = false;
+      geocodePlace(input)
+        .then(coords => {
+          userLocation = coords;
+          initMap(coords.lat, coords.lon);
+          fetchBusStops(coords.lat, coords.lon);
+        })
+        .catch(err => {
+          console.error(err);
+          alert("Error finding location: " + err.message);
+        });
+    }
+
+    function useMyLocation() {
+      if (navigator.geolocation) {
+        navigator.geolocation.getCurrentPosition(position => {
+          const lat = position.coords.latitude;
+          const lon = position.coords.longitude;
+          userLocation = { lat, lon };
+          speechSynthesis.cancel();
+          if (!muted) { beepSound(); }
+          spokenNearest = false;
+          initMap(lat, lon);
+          fetchBusStops(lat, lon);
+        }, err => {
+          alert("Geolocation error: " + err.message);
+        });
+      } else {
+        alert("Geolocation is not supported by your browser.");
+      }
+    }
+
+    // --------------- Mute Toggle Handler ---------------
+    function toggleMute() {
+      muted = !muted;
+      if (muted) {
+        document.getElementById('mute-btn').textContent = "Unmute";
+        speechSynthesis.cancel();
+      } else {
+        document.getElementById('mute-btn').textContent = "Mute";
+      }
+    }
+
+    // --------------- Event Listeners ---------------
+    document.getElementById('search-btn').addEventListener('click', handleSearch);
+    document.getElementById('locate-btn').addEventListener('click', useMyLocation);
+    document.getElementById('mute-btn').addEventListener('click', toggleMute);
+
+    // Initialize the map centered on Central London.
+    initMap(51.5074, -0.1278);
+
+    // Preload voices so that the British voice is available.
+    window.speechSynthesis.onvoiceschanged = function() {
+      speechSynthesis.getVoices();
+    };
+  </script>
+</body>
+</html>
